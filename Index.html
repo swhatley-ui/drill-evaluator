@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>30-Step Drill Memory Evaluator</title>
+  <style>
+    :root {
+      --primary: #0056b3;
+      --success: #28a745;
+      --danger: #dc3545;
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-top: 0;
+      color: #111;
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s, opacity 0.2s;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-start { background-color: var(--success); color: white; }
+    .btn-stop { background-color: var(--danger); color: white; }
+    .btn-reset { background-color: #6c757d; color: white; }
+
+    .status-badge {
+      text-align: center;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      background-color: #e9ecef;
+      color: #495057;
+    }
+
+    .status-badge.active {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    .display-card {
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 24px 16px;
+      text-align: center;
+      margin-bottom: 20px;
+      background-color: #fafafa;
+    }
+
+    .step-tracker {
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #555;
+      font-weight: 600;
+    }
+
+    .memory-prompt {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 10px;
+    }
+
+    .log-container {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      height: 180px;
+      overflow-y: auto;
+      padding: 10px;
+      background: #fff;
+      font-size: 0.95rem;
+    }
+
+    .log-item {
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .log-item:last-child { border-bottom: none; }
+    .pass { color: var(--success); font-weight: 600; }
+    .fail { color: var(--danger); font-weight: 600; }
+
+    .score-footer {
+      margin-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>30-Step Drill Evaluator (Memory Test)</h1>
+
+  <div class="form-group">
+    <label for="studentName">Student Name</label>
+    <input type="text" id="studentName" placeholder="Enter student full name" autocomplete="off">
+  </div>
+
+  <div class="controls">
+    <button id="startBtn" class="btn-start" onclick="startTest()">Start Test</button>
+    <button id="stopBtn" class="btn-stop" onclick="stopTest()" disabled>Stop</button>
+    <button id="resetBtn" class="btn-reset" onclick="resetTest()">Reset</button>
+  </div>
+
+  <div id="statusBadge" class="status-badge">Status: Ready to begin</div>
+
+  <div class="display-card">
+    <div class="step-tracker">Step <span id="currentStepNum">1</span> of 30</div>
+    <div id="promptText" class="memory-prompt">Speak Next Command From Memory</div>
+  </div>
+
+  <label>Speech Activity Log</label>
+  <div id="log" class="log-container"></div>
+
+  <div class="score-footer">
+    <span>Score:</span>
+    <span id="scoreDisplay">0 / 30</span>
+  </div>
+</div>
+
+<script>
+  // ------------------------------------------------------------------
+  // REPLACE THESE 30 STRINGS WITH YOUR EXACT 30 DRILL STEPS (IN ORDER)
+  // ------------------------------------------------------------------
+  const DRILL_SEQUENCE = [
+    "fall in", "dress right dress", "ready front", "present arms", "order arms",
+    "left face", "about face", "forward march", "column left", "column half left",
+    "to the rear march", "column right", "column half right", "right flank march", "left flank march",
+    "eyes right", "ready front", "halt", "right face", "about face", "parade rest",
+    "attention", "left step march", "halt", "mark time march", "half step march",
+    "forward march", "class halt", "fall out", "dismissed"
+  ];
+
+  let currentStepIndex = 0;
+  let score = 0;
+  let recognition = null;
+  let isListening = false;
+
+  // Initialize Web Speech API
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert("Web Speech API is not supported in this browser. Please use Google Chrome.");
+  } else {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          const spokenText = event.results[i][0].transcript.trim().toLowerCase();
+          evaluateSpeech(spokenText);
+        }
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech Recognition Error:", event.error);
+      if (event.error === 'not-allowed') {
+        alert("Microphone permission denied. Ensure microphone access is allowed in Chrome's site settings.");
+        stopTest();
+      }
+    };
+
+    recognition.onend = () => {
+      if (isListening && currentStepIndex < DRILL_SEQUENCE.length) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn("Recognition restart caught:", e);
+        }
+      }
+    };
+  }
+
+  function startTest() {
+    const nameInput = document.getElementById("studentName").value.trim();
+    if (!nameInput) {
+      alert("Please enter a student name before starting.");
+      return;
+    }
+
+    if (!recognition) return;
+
+    isListening = true;
+    document.getElementById("startBtn").disabled = true;
+    document.getElementById("stopBtn").disabled = false;
+    document.getElementById("studentName").disabled = true;
+    
+    const statusBadge = document.getElementById("statusBadge");
+    statusBadge.innerText = "Status: Listening for command...";
+    statusBadge.classList.add("active");
+
+    updateDisplay();
+    
+    try {
+      recognition.start();
+    } catch (e) {
+      console.warn("Recognition start exception:", e);
+    }
+  }
+
+  function stopTest() {
+    isListening = false;
+    if (recognition) {
+      try { recognition.stop(); } catch(e){}
+    }
+
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("stopBtn").disabled = true;
+    
+    const statusBadge = document.getElementById("statusBadge");
+    statusBadge.innerText = "Status: Stopped";
+    statusBadge.classList.remove("active");
+  }
+
+  function resetTest() {
+    stopTest();
+    currentStepIndex = 0;
+    score = 0;
+    document.getElementById("studentName").disabled = false;
+    document.getElementById("log").innerHTML = "";
+    document.getElementById("scoreDisplay").innerText = "0 / 30";
+    document.getElementById("promptText").innerText = "Speak Next Command From Memory";
+    updateDisplay();
+  }
+
+  function evaluateSpeech(spokenText) {
+    if (currentStepIndex >= DRILL_SEQUENCE.length) return;
+
+    const targetCommand = DRILL_SEQUENCE[currentStepIndex].toLowerCase();
+    
+    // Fuzzy match check
+    const isCorrect = spokenText.includes(targetCommand) || targetCommand.includes(spokenText);
+
+    const logDiv = document.getElementById("log");
+    const logItem = document.createElement("div");
+    logItem.className = "log-item";
+
+    if (isCorrect) {
+      score++;
+      logItem.innerHTML = `<span class="pass">✓ Step ${currentStepIndex + 1}:</span> Correct ("${spokenText}")`;
+    } else {
+      logItem.innerHTML = `<span class="fail">✗ Step ${currentStepIndex + 1}:</span> Incorrect ("${spokenText}")`;
+    }
+
+    logDiv.appendChild(logItem);
+    logDiv.scrollTop = logDiv.scrollHeight;
+
+    currentStepIndex++;
+    updateDisplay();
+
+    if (currentStepIndex >= DRILL_SEQUENCE.length) {
+      stopTest();
+      document.getElementById("promptText").innerText = "SEQUENCE COMPLETE";
+      document.getElementById("statusBadge").innerText = "Status: Test Completed";
+    }
+  }
+
+  function updateDisplay() {
+    if (currentStepIndex < DRILL_SEQUENCE.length) {
+      document.getElementById("currentStepNum").innerText = currentStepIndex + 1;
+    }
+    document.getElementById("scoreDisplay").innerText = `${score} / 30`;
+  }
+</script>
+
+</body>
+</html>
